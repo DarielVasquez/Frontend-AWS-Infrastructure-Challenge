@@ -1,0 +1,33 @@
+destroy-frontend-vue:
+  stage: destroy
+  image:
+    name: hashicorp/terraform:1.5
+    entrypoint: ["/bin/sh", "-c"]
+  environment:
+    # name: review/$CI_COMMIT_REF_NAME
+    # url: https://$NAME_PREFIX-frontend.acklenavenueclient.com
+    # action: stop
+  before_script:
+    - apk --update --no-cache add python3 py-pip ca-certificates terraform tree git
+    - pip3 install python-dateutil awscli
+    - cd ci/tf/frontend
+  script:
+    - echo "access_key=\"$AWS_ACCESS_KEY_ID\"" > terraform.tfvars
+    - echo "secret_key=\"$AWS_SECRET_ACCESS_KEY\""  >> terraform.tfvars
+    - echo "aws_region=\"$AWS_REGION\""  >> terraform.tfvars
+    - echo "hosted_zone_name=\"$HOSTED_ZONE_NAME\"" >> terraform.tfvars
+    - echo "hosted_zone_name_2=\"$HOSTED_ZONE_NAME_2\"" >> terraform.tfvars
+    - echo "hosted_zone_name_3=\"$HOSTED_ZONE_NAME_3\"" >> terraform.tfvars
+    - echo "hosted_zone_name_4=\"$HOSTED_ZONE_NAME_4\"" >> terraform.tfvars
+    - echo "name_prefix=\"$NAME_PREFIX\"" >> terraform.tfvars
+    - echo "project_tag=\"$PROJECT_TAG\"" >> terraform.tfvars
+    - echo "zone_id=\"$ZONE_ID\"" >> terraform.tfvars
+    - echo "cloudfront_certificate_arn=\"$CLOUDFRONT_CERTIFICATE_ARN\"" >> terraform.tfvars
+    - terraform init
+      -backend-config="key=${CI_PROJECT_NAME}/${CI_COMMIT_REF_NAME}-frontend-vue"
+      -backend-config="bucket=${S3_BUCKET_TF_STATE}" -upgrade
+    - terraform destroy -auto-approve
+  when: manual
+  only:
+    refs:
+      - main

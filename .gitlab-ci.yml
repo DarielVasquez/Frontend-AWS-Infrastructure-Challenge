@@ -1,0 +1,9 @@
+include:
+  - local: "ci/gitlab/frontend/build-frontend.yml"
+  - local: "ci/gitlab/frontend/deploy-frontend.yml"
+  - local: "ci/gitlab/frontend/destroy-frontend.yml"
+
+stages:
+  - build
+  - deploy
+  - destroy

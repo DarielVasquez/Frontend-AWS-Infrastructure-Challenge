@@ -1,0 +1,123 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: CloudFormation Template To Create S3 Bucket, Cloudfront, Route53
+
+Parameters:
+  NamePrefix:
+    Type: String
+  ProjectTag:
+    Type: String
+  CloudfrontCertificateARN:
+    Type: String
+  HostedZoneName:
+    Type: String
+  ZoneId:
+    Type: String
+
+Resources:
+  FrontendS3Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "${NamePrefix}-frontend-s3"
+      Tags:
+        - Key: "DevOps"
+          Value: !Ref "ProjectTag"
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: false
+        BlockPublicPolicy: false
+        IgnorePublicAcls: false
+        RestrictPublicBuckets: false
+      WebsiteConfiguration:
+        IndexDocument: "index.html"
+        ErrorDocument: "index.html"
+
+  S3BucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref FrontendS3Bucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal: "*"
+            Action:
+              - "s3:GetObject"
+            Resource:
+              - !Sub "arn:aws:s3:::${FrontendS3Bucket}"
+              - !Sub "arn:aws:s3:::${FrontendS3Bucket}/*"
+
+  S3FrontendDistribution:
+    Type: AWS::CloudFront::Distribution
+    DependsOn: FrontendS3Bucket
+    Properties:
+      DistributionConfig:
+        Origins:
+          - DomainName: !GetAtt FrontendS3Bucket.DomainName
+            Id: !Sub "${NamePrefix}-origin"
+            S3OriginConfig:
+              OriginAccessIdentity: ""
+        DefaultRootObject: "index.html"
+        Aliases:
+          - !Ref "HostedZoneName"
+        Enabled: true
+        IPV6Enabled: true
+        DefaultCacheBehavior:
+          AllowedMethods:
+            - GET
+            - HEAD
+          CachedMethods:
+            - GET
+            - HEAD
+          TargetOriginId: !Sub "${NamePrefix}-origin"
+          ForwardedValues:
+            QueryString: false
+            Cookies:
+              Forward: "none"
+          MinTTL: 0
+          DefaultTTL: 3600
+          MaxTTL: 86400
+          ViewerProtocolPolicy: "redirect-to-https"
+        ViewerCertificate:
+          AcmCertificateArn: !Ref "CloudfrontCertificateARN"
+          SslSupportMethod: "sni-only"
+        PriceClass: "PriceClass_All"
+        CacheBehaviors:
+          - AllowedMethods:
+              - GET
+              - HEAD
+              - OPTIONS
+            CachedMethods:
+              - GET
+              - HEAD
+            Compress: true
+            PathPattern: "/content/immutable/*"
+            ViewerProtocolPolicy: "redirect-to-https"
+            MinTTL: 0
+            DefaultTTL: 3600
+            MaxTTL: 86400
+            ForwardedValues:
+              QueryString: false
+              Cookies:
+                Forward: "none"
+            TargetOriginId: !Sub "${NamePrefix}-origin"
+        Restrictions:
+          GeoRestriction:
+            RestrictionType: "none"
+      Tags:
+        - Key: "DevOps"
+          Value: !Ref "ProjectTag"
+
+  FrontendAliasDNSRecord:
+    Type: AWS::Route53::RecordSet
+    DependsOn: S3FrontendDistribution
+    Properties:
+      HostedZoneId: !Ref "ZoneId"
+      Name: !Ref "HostedZoneName"
+      Type: "A"
+      AliasTarget:
+        DNSName: !GetAtt S3FrontendDistribution.DomainName
+        HostedZoneId: Z2FDTNDATAQYW2
+        EvaluateTargetHealth: true
+
+Outputs:
+  S3Frontend:
+    Value: !GetAtt FrontendS3Bucket.WebsiteURL
